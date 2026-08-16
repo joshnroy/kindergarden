@@ -74,7 +74,13 @@ MujocoObjectTypeFeatures[MujocoTidyBotRobotObjectType] = [
     "pos_arm_joint5",
     "pos_arm_joint6",
     "pos_arm_joint7",
+    # The commanded gripper ctrl value in [0, 1], and where the two driver joints of
+    # the Robotiq 2F-85 actually are. The command alone does not determine them: a
+    # gripper closed on an object stops short of a gripper closed on air, and both
+    # report the same command.
     "pos_gripper",
+    "pos_gripper_joint1",
+    "pos_gripper_joint2",
     "vel_base_x",
     "vel_base_y",
     "vel_base_rot",
@@ -101,7 +107,11 @@ MujocoObjectTypeFeatures[MujocoFR3RobotObjectType] = [
     "pos_arm_joint5",
     "pos_arm_joint6",
     "pos_arm_joint7",
+    # See MujocoTidyBotRobotObjectType: the FR3 carries the same Robotiq 2F-85, and
+    # both robots read these through the same helpers on ObjectCentricRobotEnv.
     "pos_gripper",
+    "pos_gripper_joint1",
+    "pos_gripper_joint2",
     "vel_arm_joint1",
     "vel_arm_joint2",
     "vel_arm_joint3",

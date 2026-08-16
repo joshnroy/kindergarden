@@ -51,6 +51,10 @@ from kinder.envs.dynamic3d.utils import (
     convert_yaw_to_quaternion,
 )
 
+# Driver joints of the Robotiq 2F-85, which both the TidyBot and the FR3 carry. Their
+# object types name one pos_gripper_joint feature each.
+NUM_GRIPPER_JOINTS = 2
+
 
 @dataclass(frozen=True)
 class TidyBot3DConfig(KinDEREnvConfig, metaclass=FinalConfigMeta):
@@ -1229,14 +1233,25 @@ class ObjectCentricRobotEnv(ObjectCentricDynamic3DRobotEnv[TidyBot3DConfig]):
 
     def _get_arm_and_gripper_pos_data(self) -> dict[str, float]:
         """Get position features shared by robots with a 7-joint arm and a [0, 255]
-        gripper actuator: pos_arm_joint1..7 and pos_gripper."""
+        gripper actuator: pos_arm_joint1..7, pos_gripper and pos_gripper_joint1..2.
+
+        pos_gripper is the command, pos_gripper_joint1..2 are where the fingers are.
+        Both are needed: the command does not determine the finger positions, since a
+        gripper closed on an object stops short of one closed on air.
+        """
         assert self._robot_env is not None, "Robot environment not initialized"
         assert self._robot_env.qpos is not None
         assert self._robot_env.ctrl is not None
+        assert len(self._robot_env.qpos["gripper"]) == NUM_GRIPPER_JOINTS, (
+            "Expected a two-finger gripper; a robot with a different one needs its own "
+            "pos_gripper_joint features"
+        )
         data: dict[str, float] = {
             f"pos_arm_joint{i}": self._robot_env.qpos["arm"][i - 1] for i in range(1, 8)
         }
         data["pos_gripper"] = self._robot_env.ctrl["gripper"][0] / 255.0
+        for i in range(1, NUM_GRIPPER_JOINTS + 1):
+            data[f"pos_gripper_joint{i}"] = self._robot_env.qpos["gripper"][i - 1]
         return data
 
     def _get_arm_and_gripper_vel_data(self) -> dict[str, float]:
@@ -1259,6 +1274,10 @@ class ObjectCentricRobotEnv(ObjectCentricDynamic3DRobotEnv[TidyBot3DConfig]):
         """Restore the arm and gripper state shared by robots with a 7-joint arm and a
         [0, 255] gripper actuator.
 
+        The gripper's driver joints are restored alongside its command, so that a state
+        captured while grasping restores a grasp rather than the open hand the fingers
+        happen to be left in.
+
         Args:
             state: The object-centric state to restore from.
             robot_obj: The robot object in the state.
@@ -1278,6 +1297,10 @@ class ObjectCentricRobotEnv(ObjectCentricDynamic3DRobotEnv[TidyBot3DConfig]):
 
         gripper_pos = state.get(robot_obj, "pos_gripper")
         self._robot_env.ctrl["gripper"][:] = gripper_pos * 255.0
+        self._robot_env.qpos["gripper"][:] = [
+            state.get(robot_obj, f"pos_gripper_joint{i}")
+            for i in range(1, NUM_GRIPPER_JOINTS + 1)
+        ]
 
         robot_arm_vel = [state.get(robot_obj, f"vel_arm_joint{i}") for i in range(1, 8)]
         self._robot_env.qvel["arm"][:] = robot_arm_vel
